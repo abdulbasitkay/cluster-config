@@ -1,20 +1,103 @@
-apiVersion: apps/v1beta1
+apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   labels:
     app: helloworld
   name: helloworld
+  namespace: sample
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: helloworld
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
   template:
     metadata:
       labels:
         app: helloworld
-      name: helloworld
     spec:
       containers:
-        - name: helloworld
-          image: gcr.io/hightowerlabs/helloworld:0.0.1
-          imagePullPolicy: Always
-          args:
-            - "-http=127.0.0.1:8080"
+      - env:
+        - name: test
+        image: abdulbasitkay/hello-world:0.0.1
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 91
+        name: helloworld
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          successThreshold: 1
+          timeoutSeconds: 61
+        resources:
+          limits:
+            cpu: "2"
+            memory: 4Gi
+          requests:
+            cpu: 100m
+            memory: 512Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: Default
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: helloworld
+  name: helloworld
+  namespace: sample
+spec:
+  clusterIP: 10.229.22.61
+  ports:
+  - name: default
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: helloworld
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: traefik
+  labels:
+    app: helloworld
+  name: helloworld
+  namespace: sample
+spec:
+  rules:
+  - host: helloworld
+    http:
+      paths:
+      - backend:
+          serviceName: helloworld
+          servicePort: default
+        path: /
